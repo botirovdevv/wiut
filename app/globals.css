@@ -1,26 +1,190 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
+/*
+ * Theme: dark only (video, heatmap and annotations read best on a dark surface).
+ * Palette: cool zinc neutrals + one accent (emerald). Warn/bad are semantic states, not accents.
+ *
+ * Radius rule:
+ *   buttons + status chips  -> pill (rounded-full)
+ *   bezel shell / core       -> 28px / 22px (concentric, see .bezel)
+ *   plain surfaces (dashboard cards) -> 20px
+ *   media, inputs, inner wells -> 12px
+ *
+ * Z-index scale: mobile menu 39 (sits under the nav so the close button stays reachable),
+ * nav 40, grain 60.
+ */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-bg: #0b0c0f;
+  --color-panel: #131418;
+  --color-panel-2: #1b1c21;
+  --color-line: #26272d;
+  --color-fg: #eceef0;
+  --color-muted: #9b9ea7;
+  --color-accent: #3ecf8e;
+  --color-accent-ink: #05200f;
+  --color-warn: #e8b931;
+  --color-bad: #ef6b6b;
+  --color-media: #08090b;
+
+  --radius-shell: 28px;
+  --radius-core: 22px;
+  --radius-surface: 20px;
+  --radius-control: 12px;
+  --radius-media: 12px;
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-fluid: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: dark;
+  scroll-behavior: smooth;
+  scroll-padding-top: 6rem;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-fg);
+}
+
+/* Film grain: fixed and non-interactive so it never repaints with scrolling content. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+::selection {
+  background: rgb(62 207 142 / 0.3);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+/* ---------- surfaces ---------- */
+
+@utility surface {
+  @apply rounded-surface border border-line bg-panel p-4 sm:p-6;
+}
+
+/* Double-bezel: an outer tray with a hairline, holding an inner core with its own highlight. */
+@utility bezel {
+  @apply rounded-shell bg-white/[0.03] p-1.5 ring-1 ring-white/[0.08];
+}
+
+@utility bezel-core {
+  @apply rounded-core bg-panel shadow-[inset_0_1px_0_rgb(255_255_255/0.06)];
+}
+
+@utility section-title {
+  @apply text-base font-semibold tracking-tight text-fg;
+}
+
+@utility eyebrow-pill {
+  @apply inline-flex items-center gap-2 rounded-full border border-accent/25 bg-accent/[0.07] px-3 py-1 text-[11px] font-medium tracking-[0.16em] text-accent uppercase;
+}
+
+/* ---------- buttons ---------- */
+
+@utility btn {
+  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-5 font-medium whitespace-nowrap transition duration-300 ease-fluid select-none active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100;
+}
+
+@utility btn-primary {
+  @apply btn bg-accent text-accent-ink hover:bg-[#52d99c];
+}
+
+@utility btn-ghost {
+  @apply btn border border-line bg-panel-2 text-fg hover:border-white/15 hover:bg-line;
+}
+
+/* Trailing icon nested in its own circle ("button in button"). Parent needs `group`. */
+@utility btn-icon {
+  @apply -mr-2.5 grid size-8 place-items-center rounded-full bg-black/15 transition duration-300 ease-fluid group-hover:translate-x-0.5 group-hover:-translate-y-px group-hover:scale-105;
+}
+
+/* ---------- states ---------- */
+
+@utility skeleton {
+  @apply relative overflow-hidden bg-panel-2;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.05), transparent);
+    animation: shimmer 1.6s infinite;
+  }
+}
+
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* ---------- motion ---------- */
+
+/* Dashboard: staggered entry when a result arrives (processing -> report state change). */
+@utility reveal {
+  animation: reveal 0.6s var(--ease-out-expo) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+/* Landing: scroll-entry driven by <Reveal> (IntersectionObserver toggles data-shown). */
+@utility reveal-up {
+  opacity: 0;
+  transform: translateY(28px);
+  filter: blur(6px);
+  transition:
+    opacity 0.8s var(--ease-fluid),
+    transform 0.8s var(--ease-fluid),
+    filter 0.8s var(--ease-fluid);
+  transition-delay: calc(var(--i, 0) * 90ms);
+
+  &[data-shown="true"] {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+  }
+
+  .reveal-up {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
 }
